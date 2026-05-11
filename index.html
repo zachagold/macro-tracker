@@ -145,7 +145,25 @@ function App() {
       });
       setEditIdx(null);
     } else {
-      setAllData(prev => ({ ...prev, [currentDate]: [...(prev[currentDate]||[]), { name, cal, carb, fat, pro }] }));
+      setAllData(prev => {
+        const existing = [...(prev[currentDate]||[])];
+        const matchIdx = existing.findIndex(e => e.name.toLowerCase() === name.toLowerCase());
+        if (matchIdx !== -1) {
+          const m = existing[matchIdx];
+          const count = (m.count || 1) + 1;
+          existing[matchIdx] = {
+            name: m.name,
+            cal: Math.round(((m.cal / (m.count||1)) * count) * 10) / 10,
+            carb: Math.round(((m.carb / (m.count||1)) * count) * 10) / 10,
+            fat: Math.round(((m.fat / (m.count||1)) * count) * 10) / 10,
+            pro: Math.round(((m.pro / (m.count||1)) * count) * 10) / 10,
+            count,
+          };
+        } else {
+          existing.push({ name, cal, carb, fat, pro, count: 1 });
+        }
+        return { ...prev, [currentDate]: existing };
+      });
     }
     setEntryName(""); setInCal(""); setInCarb(""); setInFat(""); setInPro("");
   }
@@ -384,13 +402,21 @@ function App() {
         {entries.length === 0 ? <div style={s.empty}>No entries yet</div> : entries.map((e, i) => (
           <div key={i} style={{ ...s.entry, borderColor: editIdx===i ? "#f97316" : "#2e2e2e" }}>
             <div style={s.entryInfo}>
-              <div style={s.entryName}>{e.name}</div>
+              <div style={s.entryNameRow}>
+                <div style={s.entryName}>{e.name}</div>
+                {(e.count||1) > 1 && <div style={s.countBadge}>x{e.count}</div>}
+              </div>
               <div style={s.entryMacros}>
                 <span style={{ color: COLORS.cal }}>{e.cal} cal</span>
                 <span style={{ color: COLORS.carb }}>{e.carb}g carbs</span>
                 <span style={{ color: COLORS.fat }}>{e.fat}g fat</span>
                 <span style={{ color: COLORS.pro }}>{e.pro}g protein</span>
               </div>
+              {(e.count||1) > 1 && (
+                <div style={s.perServing}>
+                  {Math.round(e.cal/e.count)} cal / {Math.round(e.carb/e.count)}g C / {Math.round(e.fat/e.count)}g F / {Math.round(e.pro/e.count)}g P per serving
+                </div>
+              )}
             </div>
             <button style={s.editBtn} onClick={() => startEdit(i)}>edit</button>
             <button style={s.delBtn} onClick={() => deleteEntry(i)}>x</button>
@@ -493,6 +519,9 @@ const s = {
   entryMacros: { display:"flex", gap:10, flexWrap:"wrap", fontSize:12, fontWeight:500 },
   editBtn: { background:"#242424", border:"1px solid #2e2e2e", borderRadius:6, color:"#f0f0f0", fontFamily:"inherit", fontSize:11, fontWeight:700, padding:"5px 10px", cursor:"pointer", flexShrink:0 },
   delBtn: { background:"none", border:"none", color:"#666", fontSize:20, cursor:"pointer", padding:4, lineHeight:1, flexShrink:0 },
+  entryNameRow: { display:"flex", alignItems:"center", gap:8, marginBottom:5 },
+  countBadge: { background:"#f97316", color:"#000", fontSize:11, fontWeight:900, padding:"2px 7px", borderRadius:99 },
+  perServing: { fontSize:11, color:"#555", marginTop:4 },
   empty: { textAlign:"center", color:"#666", fontSize:14, padding:"24px 0" },
   fab: { position:"fixed", bottom:24, right:20, background:"#1a1a1a", border:"1px solid #2e2e2e", color:"#666", width:48, height:48, borderRadius:"50%", fontSize:13, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", zIndex:20 },
   overlay: { position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:30, display:"flex", alignItems:"flex-end" },
