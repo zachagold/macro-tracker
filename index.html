@@ -8,30 +8,24 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #0f0f0f; color: #f0f0f0; font-family: system-ui, -apple-system, sans-serif; }
-  input[type=number]::-webkit-outer-spin-button,
-  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
-  input[type=number] { -moz-appearance: textfield; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0f0f0f; color: #f0f0f0; font-family: system-ui, -apple-system, sans-serif; }
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+input[type=number] { -moz-appearance: textfield; }
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useEffect } = React;
-
 const CAL_PER_G = { carb: 4, fat: 9, pro: 4 };
 const DEFAULT_GOALS = { cal: 1710, carb: 144, fat: 62, pro: 149 };
 const COLORS = { cal: "#f97316", carb: "#3b82f6", fat: "#a855f7", pro: "#22c55e" };
 
-function todayKey() {
-  return new Date().toISOString().slice(0, 10);
-}
-
+function todayKey() { return new Date().toISOString().slice(0, 10); }
 function fmtDate(key) {
-  return new Date(key + "T12:00:00").toLocaleDateString("en-US", {
-    weekday: "short", month: "short", day: "numeric",
-  });
+  return new Date(key + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
 function Ring({ color, used, goal, label, unit }) {
@@ -39,20 +33,18 @@ function Ring({ color, used, goal, label, unit }) {
   const pct = goal > 0 ? Math.min(used / goal, 1) : 0;
   const offset = circ - pct * circ;
   const over = goal > 0 && used > goal;
-  const remain = goal ? (over ? "-" : "") + Math.abs(Math.round(goal - used)) + unit : "—";
   return (
-    <div style={styles.ringCard}>
+    <div style={s.ringCard}>
       <svg viewBox="0 0 64 64" width={64} height={64}>
         <circle cx={32} cy={32} r={27} fill="none" stroke="#2e2e2e" strokeWidth={6} />
-        <circle cx={32} cy={32} r={27} fill="none"
-          stroke={over ? "#ef4444" : color} strokeWidth={6} strokeLinecap="round"
-          strokeDasharray={circ} strokeDashoffset={offset}
-          transform="rotate(-90 32 32)"
-          style={{ transition: "stroke-dashoffset 0.5s ease" }}
-        />
+        <circle cx={32} cy={32} r={27} fill="none" stroke={over ? "#ef4444" : color}
+          strokeWidth={6} strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset}
+          transform="rotate(-90 32 32)" style={{ transition: "stroke-dashoffset 0.5s ease" }} />
       </svg>
-      <div style={styles.ringLabel}>{label}</div>
-      <div style={{ ...styles.ringRemain, color: over ? "#ef4444" : color }}>{remain}</div>
+      <div style={s.ringLabel}>{label}</div>
+      <div style={{ ...s.ringRemain, color: over ? "#ef4444" : color }}>
+        {goal ? (over ? "-" : "") + Math.abs(Math.round(goal - used)) + unit : "---"}
+      </div>
     </div>
   );
 }
@@ -61,75 +53,50 @@ function App() {
   const [goals, setGoals] = useState(() => {
     try {
       const g = JSON.parse(localStorage.getItem("mg_goals") || "{}");
-      return {
-        cal:  Number(g.cal)  || DEFAULT_GOALS.cal,
-        carb: Number(g.carb) || DEFAULT_GOALS.carb,
-        fat:  Number(g.fat)  || DEFAULT_GOALS.fat,
-        pro:  Number(g.pro)  || DEFAULT_GOALS.pro,
-      };
+      return { cal: Number(g.cal)||DEFAULT_GOALS.cal, carb: Number(g.carb)||DEFAULT_GOALS.carb, fat: Number(g.fat)||DEFAULT_GOALS.fat, pro: Number(g.pro)||DEFAULT_GOALS.pro };
     } catch(e) { return { ...DEFAULT_GOALS }; }
   });
-
   const [modes, setModes] = useState(() => {
     try {
       const m = JSON.parse(localStorage.getItem("mg_modes") || "{}");
-      return {
-        carb: m.carb === "%" ? "%" : "g",
-        fat:  m.fat  === "%" ? "%" : "g",
-        pro:  m.pro  === "%" ? "%" : "g",
-      };
-    } catch(e) { return { carb: "g", fat: "g", pro: "g" }; }
+      return { carb: m.carb==="%"?"%":"g", fat: m.fat==="%"?"%":"g", pro: m.pro==="%"?"%":"g" };
+    } catch(e) { return { carb:"g", fat:"g", pro:"g" }; }
   });
-
   const [allData, setAllData] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("mg_data") || "{}"); }
-    catch(e) { return {}; }
+    try { return JSON.parse(localStorage.getItem("mg_data") || "{}"); } catch(e) { return {}; }
   });
-
+  const [savedFoods, setSavedFoods] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("mg_saved") || "[]"); } catch(e) { return []; }
+  });
   const [currentDate, setCurrentDate] = useState(todayKey());
-  const [showModal, setShowModal] = useState(false);
   const [entryName, setEntryName] = useState("");
   const [inCal, setInCal] = useState("");
   const [inCarb, setInCarb] = useState("");
   const [inFat, setInFat] = useState("");
   const [inPro, setInPro] = useState("");
-  const [gCal, setGCal] = useState("");
-  const [gCarb, setGCarb] = useState("");
-  const [gFat, setGFat] = useState("");
-  const [gPro, setGPro] = useState("");
-  const [tempModes, setTempModes] = useState({ carb: "g", fat: "g", pro: "g" });
+  const [showSavedList, setShowSavedList] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [gCal, setGCal] = useState(String(DEFAULT_GOALS.cal));
+  const [gCarb, setGCarb] = useState(String(DEFAULT_GOALS.carb));
+  const [gFat, setGFat] = useState(String(DEFAULT_GOALS.fat));
+  const [gPro, setGPro] = useState(String(DEFAULT_GOALS.pro));
+  const [tempModes, setTempModes] = useState({ carb:"g", fat:"g", pro:"g" });
 
-  useEffect(() => {
-    localStorage.setItem("mg_goals", JSON.stringify(goals));
-  }, [goals]);
-
-  useEffect(() => {
-    localStorage.setItem("mg_modes", JSON.stringify(modes));
-  }, [modes]);
-
-  useEffect(() => {
-    localStorage.setItem("mg_data", JSON.stringify(allData));
-  }, [allData]);
+  useEffect(() => { localStorage.setItem("mg_goals", JSON.stringify(goals)); }, [goals]);
+  useEffect(() => { localStorage.setItem("mg_modes", JSON.stringify(modes)); }, [modes]);
+  useEffect(() => { localStorage.setItem("mg_data", JSON.stringify(allData)); }, [allData]);
+  useEffect(() => { localStorage.setItem("mg_saved", JSON.stringify(savedFoods)); }, [savedFoods]);
 
   const entries = allData[currentDate] || [];
-
   const totals = entries.reduce(
-    (acc, e) => ({
-      cal:  acc.cal  + (Number(e.cal)  || 0),
-      carb: acc.carb + (Number(e.carb) || 0),
-      fat:  acc.fat  + (Number(e.fat)  || 0),
-      pro:  acc.pro  + (Number(e.pro)  || 0),
-    }),
+    (acc, e) => ({ cal: acc.cal+(Number(e.cal)||0), carb: acc.carb+(Number(e.carb)||0), fat: acc.fat+(Number(e.fat)||0), pro: acc.pro+(Number(e.pro)||0) }),
     { cal: 0, carb: 0, fat: 0, pro: 0 }
   );
 
   function gramsGoal(macro) {
     const val = goals[macro];
     if (!val) return 0;
-    if (modes[macro] === "%") {
-      if (!goals.cal) return 0;
-      return Math.round((goals.cal * val / 100) / CAL_PER_G[macro]);
-    }
+    if (modes[macro] === "%") return goals.cal ? Math.round((goals.cal * val / 100) / CAL_PER_G[macro]) : 0;
     return val;
   }
 
@@ -140,177 +107,175 @@ function App() {
   }
 
   function addEntry() {
-    const cal  = Number(inCal)  || 0;
-    const carb = Number(inCarb) || 0;
-    const fat  = Number(inFat)  || 0;
-    const pro  = Number(inPro)  || 0;
+    const cal = Number(inCal)||0, carb = Number(inCarb)||0, fat = Number(inFat)||0, pro = Number(inPro)||0;
     if (!cal && !carb && !fat && !pro) return;
     const name = entryName.trim() || "Entry";
-    setAllData(prev => ({
-      ...prev,
-      [currentDate]: [...(prev[currentDate] || []), { name, cal, carb, fat, pro }],
-    }));
+    setAllData(prev => ({ ...prev, [currentDate]: [...(prev[currentDate]||[]), { name, cal, carb, fat, pro }] }));
     setEntryName(""); setInCal(""); setInCarb(""); setInFat(""); setInPro("");
   }
 
+  function saveCurrentAsFood() {
+    const cal = Number(inCal)||0, carb = Number(inCarb)||0, fat = Number(inFat)||0, pro = Number(inPro)||0;
+    const name = entryName.trim();
+    if (!name) { alert("Add a label before saving"); return; }
+    if (!cal && !carb && !fat && !pro) { alert("Enter at least one macro before saving"); return; }
+    if (savedFoods.find(f => f.name.toLowerCase() === name.toLowerCase())) { alert("A saved entry with that name already exists"); return; }
+    setSavedFoods(prev => [...prev, { name, cal, carb, fat, pro }]);
+    alert(name + " saved!");
+  }
+
+  function loadSavedFood(food) {
+    setEntryName(food.name); setInCal(String(food.cal));
+    setInCarb(String(food.carb)); setInFat(String(food.fat)); setInPro(String(food.pro));
+    setShowSavedList(false);
+  }
+
+  function deleteSavedFood(i) { setSavedFoods(prev => prev.filter((_, idx) => idx !== i)); }
   function deleteEntry(i) {
-    setAllData(prev => ({
-      ...prev,
-      [currentDate]: prev[currentDate].filter((_, idx) => idx !== i),
-    }));
+    setAllData(prev => ({ ...prev, [currentDate]: prev[currentDate].filter((_, idx) => idx !== i) }));
   }
 
   function openModal() {
-    setGCal(String(goals.cal));
-    setGCarb(String(goals.carb));
-    setGFat(String(goals.fat));
-    setGPro(String(goals.pro));
-    setTempModes({ ...modes });
-    setShowModal(true);
+    setGCal(String(goals.cal)); setGCarb(String(goals.carb));
+    setGFat(String(goals.fat)); setGPro(String(goals.pro));
+    setTempModes({ ...modes }); setShowModal(true);
   }
 
   function saveGoals() {
-    const newGoals = {
-      cal:  Number(gCal)  || 0,
-      carb: Number(gCarb) || 0,
-      fat:  Number(gFat)  || 0,
-      pro:  Number(gPro)  || 0,
-    };
-    setGoals(newGoals);
-    setModes({ ...tempModes });
-    setShowModal(false);
+    setGoals({ cal: Number(gCal)||0, carb: Number(gCarb)||0, fat: Number(gFat)||0, pro: Number(gPro)||0 });
+    setModes({ ...tempModes }); setShowModal(false);
   }
 
   function resetAll() {
     if (!window.confirm("Clear all data and goals? This cannot be undone.")) return;
     localStorage.clear();
-    setGoals({ ...DEFAULT_GOALS });
-    setModes({ carb: "g", fat: "g", pro: "g" });
-    setAllData({});
-    setShowModal(false);
+    setGoals({ ...DEFAULT_GOALS }); setModes({ carb:"g", fat:"g", pro:"g" });
+    setAllData({}); setSavedFoods([]); setShowModal(false);
   }
 
   function hint(macro, val, cal) {
-    if (!val) return "";
-    const v = Number(val);
-    if (!v) return "";
-    if (tempModes[macro] === "%") {
-      return Number(cal) > 0 ? `= ${Math.round((Number(cal) * v / 100) / CAL_PER_G[macro])}g` : "Enter calories first";
-    } else {
-      return Number(cal) > 0 ? `= ${Math.round((v * CAL_PER_G[macro] / Number(cal)) * 100)}% of cals` : "Enter calories first";
-    }
+    const v = Number(val); if (!v) return "";
+    if (tempModes[macro] === "%") return Number(cal)>0 ? "= " + Math.round((Number(cal)*v/100)/CAL_PER_G[macro]) + "g" : "Enter calories first";
+    return Number(cal)>0 ? "= " + Math.round((v*CAL_PER_G[macro]/Number(cal))*100) + "% of cals" : "Enter calories first";
   }
 
-  const isToday = currentDate === todayKey();
-  const dateLabel = isToday ? "Today — " + fmtDate(currentDate) : fmtDate(currentDate);
-
-  const macroFields = [
-    { id: "cal",  label: "CAL",      val: inCal,  set: setInCal,  color: COLORS.cal },
-    { id: "carb", label: "CARBS g",  val: inCarb, set: setInCarb, color: COLORS.carb },
-    { id: "fat",  label: "FAT g",    val: inFat,  set: setInFat,  color: COLORS.fat },
-    { id: "pro",  label: "PROTEIN g",val: inPro,  set: setInPro,  color: COLORS.pro },
-  ];
-
-  const goalFields = [
-    { macro: "carb", label: "CARBS",   color: COLORS.carb, val: gCarb, set: setGCarb, ph: { g: "144", "%": "34" } },
-    { macro: "fat",  label: "FAT",     color: COLORS.fat,  val: gFat,  set: setGFat,  ph: { g: "62",  "%": "33" } },
-    { macro: "pro",  label: "PROTEIN", color: COLORS.pro,  val: gPro,  set: setGPro,  ph: { g: "149", "%": "35" } },
-  ];
+  const dateLabel = currentDate === todayKey() ? "Today -- " + fmtDate(currentDate) : fmtDate(currentDate);
 
   return (
-    <div style={styles.root}>
-      <div style={styles.header}>
-        <div style={styles.headerTitle}>MACRO TRACKER</div>
-        <div style={styles.headerSub}>Tap ⚙ to edit goals</div>
+    <div style={s.root}>
+      <div style={s.header}>
+        <div style={s.headerTitle}>MACRO TRACKER</div>
+        <div style={s.headerSub}>Tap gear to edit goals</div>
       </div>
-
-      <div style={styles.dateBar}>
-        <button style={styles.dateBtn} onClick={() => changeDay(-1)}>‹</button>
-        <span style={styles.dateLabel}>{dateLabel}</span>
-        <button style={styles.dateBtn} onClick={() => changeDay(1)}>›</button>
+      <div style={s.dateBar}>
+        <button style={s.dateBtn} onClick={() => changeDay(-1)}>{"<"}</button>
+        <span style={s.dateLabel}>{dateLabel}</span>
+        <button style={s.dateBtn} onClick={() => changeDay(1)}>{">"}</button>
       </div>
-
-      <div style={styles.rings}>
+      <div style={s.rings}>
         <Ring color={COLORS.cal}  used={totals.cal}  goal={goals.cal}         label="CALS"    unit="" />
         <Ring color={COLORS.carb} used={totals.carb} goal={gramsGoal("carb")}  label="CARBS"   unit="g" />
         <Ring color={COLORS.fat}  used={totals.fat}  goal={gramsGoal("fat")}   label="FAT"     unit="g" />
         <Ring color={COLORS.pro}  used={totals.pro}  goal={gramsGoal("pro")}   label="PROTEIN" unit="g" />
       </div>
-
-      <div style={styles.section}>
-        <div style={styles.sectionTitle}>ADD ENTRY</div>
-        <div style={styles.addCard}>
-          <input style={styles.nameInput} placeholder="Label (optional, e.g. Lunch)"
+      <div style={s.section}>
+        <div style={s.sectionTitle}>ADD ENTRY</div>
+        <div style={s.addCard}>
+          <div style={s.savedRow}>
+            <button style={s.savedBtn} onClick={() => setShowSavedList(v => !v)}>
+              {"★ Saved Foods " + (savedFoods.length > 0 ? "(" + savedFoods.length + ")" : "")}
+            </button>
+            <button style={s.saveAsBtn} onClick={saveCurrentAsFood}>+ Save</button>
+          </div>
+          {showSavedList && (
+            <div style={s.savedList}>
+              {savedFoods.length === 0 ? (
+                <div style={s.savedEmpty}>No saved foods yet. Fill in an entry and tap + Save.</div>
+              ) : savedFoods.map((f, i) => (
+                <div key={i} style={s.savedItem}>
+                  <div style={s.savedItemInfo} onClick={() => loadSavedFood(f)}>
+                    <div style={s.savedItemName}>{f.name}</div>
+                    <div style={s.savedItemMacros}>
+                      <span style={{ color: COLORS.cal }}>{f.cal} cal</span>
+                      <span style={{ color: COLORS.carb }}>{f.carb}g C</span>
+                      <span style={{ color: COLORS.fat }}>{f.fat}g F</span>
+                      <span style={{ color: COLORS.pro }}>{f.pro}g P</span>
+                    </div>
+                  </div>
+                  <button style={s.delBtn} onClick={() => deleteSavedFood(i)}>x</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <input style={s.nameInput} placeholder="Label (e.g. Chicken and Rice)"
             value={entryName} onChange={e => setEntryName(e.target.value)} />
-          <div style={styles.macroInputs}>
-            {macroFields.map(f => (
-              <div key={f.id} style={styles.macroField}>
-                <div style={{ ...styles.macroLabel, color: f.color }}>{f.label}</div>
-                <input style={styles.macroInput} type="number" inputMode="numeric"
+          <div style={s.macroInputs}>
+            {[
+              { id:"cal",  label:"CAL",       val:inCal,  set:setInCal,  color:COLORS.cal },
+              { id:"carb", label:"CARBS g",   val:inCarb, set:setInCarb, color:COLORS.carb },
+              { id:"fat",  label:"FAT g",     val:inFat,  set:setInFat,  color:COLORS.fat },
+              { id:"pro",  label:"PROTEIN g", val:inPro,  set:setInPro,  color:COLORS.pro },
+            ].map(f => (
+              <div key={f.id} style={s.macroField}>
+                <div style={{ ...s.macroLabel, color: f.color }}>{f.label}</div>
+                <input style={s.macroInput} type="number" inputMode="numeric"
                   placeholder="0" value={f.val} onChange={e => f.set(e.target.value)} />
               </div>
             ))}
           </div>
-          <button style={styles.addBtn} onClick={addEntry}>+ ADD</button>
+          <button style={s.addBtn} onClick={addEntry}>+ ADD</button>
         </div>
       </div>
-
-      <div style={styles.section}>
-        <div style={styles.sectionTitle}>TODAY'S LOG</div>
-        {entries.length === 0 ? (
-          <div style={styles.empty}>No entries yet</div>
-        ) : entries.map((e, i) => (
-          <div key={i} style={styles.entry}>
-            <div style={styles.entryInfo}>
-              <div style={styles.entryName}>{e.name}</div>
-              <div style={styles.entryMacros}>
+      <div style={s.section}>
+        <div style={s.sectionTitle}>TODAY'S LOG</div>
+        {entries.length === 0 ? <div style={s.empty}>No entries yet</div> : entries.map((e, i) => (
+          <div key={i} style={s.entry}>
+            <div style={s.entryInfo}>
+              <div style={s.entryName}>{e.name}</div>
+              <div style={s.entryMacros}>
                 <span style={{ color: COLORS.cal }}>{e.cal} cal</span>
                 <span style={{ color: COLORS.carb }}>{e.carb}g carbs</span>
                 <span style={{ color: COLORS.fat }}>{e.fat}g fat</span>
                 <span style={{ color: COLORS.pro }}>{e.pro}g protein</span>
               </div>
             </div>
-            <button style={styles.delBtn} onClick={() => deleteEntry(i)}>×</button>
+            <button style={s.delBtn} onClick={() => deleteEntry(i)}>x</button>
           </div>
         ))}
       </div>
-
-      <button style={styles.fab} onClick={openModal}>⚙</button>
-
+      <button style={s.fab} onClick={openModal}>gear</button>
       {showModal && (
-        <div style={styles.overlay} onClick={e => e.target === e.currentTarget && setShowModal(false)}>
-          <div style={styles.modal}>
-            <button style={styles.closeBtn} onClick={() => setShowModal(false)}>×</button>
-            <div style={styles.modalTitle}>DAILY GOALS</div>
-
-            <div style={styles.calGoal}>
-              <div style={{ ...styles.goalLabel, color: COLORS.cal }}>CALORIES</div>
-              <input style={styles.goalInput} type="number" inputMode="numeric"
+        <div style={s.overlay} onClick={e => e.target === e.currentTarget && setShowModal(false)}>
+          <div style={s.modal}>
+            <button style={s.closeBtn} onClick={() => setShowModal(false)}>x</button>
+            <div style={s.modalTitle}>DAILY GOALS</div>
+            <div style={s.calGoal}>
+              <div style={{ ...s.goalLabel, color: COLORS.cal }}>CALORIES</div>
+              <input style={s.goalInput} type="number" inputMode="numeric"
                 placeholder="1710" value={gCal} onChange={e => setGCal(e.target.value)} />
             </div>
-
-            {goalFields.map(f => (
+            {[
+              { macro:"carb", label:"CARBS",   color:COLORS.carb, val:gCarb, set:setGCarb, ph:{g:"144", p:"34"} },
+              { macro:"fat",  label:"FAT",     color:COLORS.fat,  val:gFat,  set:setGFat,  ph:{g:"62",  p:"33"} },
+              { macro:"pro",  label:"PROTEIN", color:COLORS.pro,  val:gPro,  set:setGPro,  ph:{g:"149", p:"35"} },
+            ].map(f => (
               <div key={f.macro}>
-                <div style={styles.macroGoalRow}>
-                  <div style={{ ...styles.macroGoalLabel, color: f.color }}>{f.label}</div>
-                  <div style={styles.toggleGroup}>
-                    <button
-                      style={{ ...styles.toggleBtn, ...(tempModes[f.macro] === "g" ? styles.toggleActive : {}) }}
-                      onClick={() => setTempModes(m => ({ ...m, [f.macro]: "g" }))}>g</button>
-                    <button
-                      style={{ ...styles.toggleBtn, ...(tempModes[f.macro] === "%" ? styles.toggleActive : {}) }}
-                      onClick={() => setTempModes(m => ({ ...m, [f.macro]: "%" }))}>%</button>
+                <div style={s.macroGoalRow}>
+                  <div style={{ ...s.macroGoalLabel, color: f.color }}>{f.label}</div>
+                  <div style={s.toggleGroup}>
+                    <button style={{ ...s.toggleBtn, ...(tempModes[f.macro]==="g" ? s.toggleActive : {}) }}
+                      onClick={() => setTempModes(m => ({ ...m, [f.macro]:"g" }))}>g</button>
+                    <button style={{ ...s.toggleBtn, ...(tempModes[f.macro]==="%" ? s.toggleActive : {}) }}
+                      onClick={() => setTempModes(m => ({ ...m, [f.macro]:"%" }))}>%</button>
                   </div>
-                  <input style={styles.goalInputSmall} type="number" inputMode="numeric"
-                    placeholder={f.ph[tempModes[f.macro]]} value={f.val}
-                    onChange={e => f.set(e.target.value)} />
+                  <input style={s.goalInputSmall} type="number" inputMode="numeric"
+                    placeholder={tempModes[f.macro]==="%" ? f.ph.p : f.ph.g} value={f.val} onChange={e => f.set(e.target.value)} />
                 </div>
-                <div style={styles.hintRow}>{hint(f.macro, f.val, gCal)}</div>
+                <div style={s.hintRow}>{hint(f.macro, f.val, gCal)}</div>
               </div>
             ))}
-
-            <button style={styles.saveBtn} onClick={saveGoals}>SAVE GOALS</button>
-            <button style={styles.resetBtn} onClick={resetAll}>CLEAR ALL DATA</button>
+            <button style={s.saveBtn} onClick={saveGoals}>SAVE GOALS</button>
+            <button style={s.resetBtn} onClick={resetAll}>CLEAR ALL DATA</button>
           </div>
         </div>
       )}
@@ -318,50 +283,59 @@ function App() {
   );
 }
 
-const styles = {
-  root: { background: "#0f0f0f", minHeight: "100vh", color: "#f0f0f0", paddingBottom: 100 },
-  header: { background: "#1a1a1a", borderBottom: "1px solid #2e2e2e", padding: "18px 20px 14px", position: "sticky", top: 0, zIndex: 10 },
-  headerTitle: { fontSize: 26, fontWeight: 900, letterSpacing: 3, color: "#f97316" },
-  headerSub: { fontSize: 12, color: "#666", marginTop: 2 },
-  dateBar: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 20px", background: "#1a1a1a", borderBottom: "1px solid #2e2e2e" },
-  dateBtn: { background: "none", border: "none", color: "#666", fontSize: 22, cursor: "pointer", padding: "4px 10px" },
-  dateLabel: { fontSize: 14, fontWeight: 500 },
-  rings: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, padding: 16 },
-  ringCard: { background: "#1a1a1a", borderRadius: 14, padding: "14px 10px", textAlign: "center", border: "1px solid #2e2e2e" },
-  ringLabel: { fontSize: 11, fontWeight: 700, letterSpacing: 1, marginTop: 8, color: "#666" },
-  ringRemain: { fontSize: 13, fontWeight: 700, marginTop: 2 },
-  section: { padding: "0 16px", marginTop: 8 },
-  sectionTitle: { fontSize: 13, fontWeight: 700, letterSpacing: 2, color: "#666", marginBottom: 10 },
-  addCard: { background: "#1a1a1a", borderRadius: 16, border: "1px solid #2e2e2e", padding: 16, marginBottom: 16 },
-  nameInput: { width: "100%", background: "#242424", border: "1px solid #2e2e2e", borderRadius: 10, color: "#f0f0f0", fontFamily: "inherit", fontSize: 15, padding: "11px 14px", marginBottom: 10, outline: "none", boxSizing: "border-box" },
-  macroInputs: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12 },
-  macroField: { display: "flex", flexDirection: "column", gap: 5 },
-  macroLabel: { fontSize: 10, fontWeight: 700, letterSpacing: 1 },
-  macroInput: { width: "100%", background: "#242424", border: "1px solid #2e2e2e", borderRadius: 8, color: "#f0f0f0", fontFamily: "inherit", fontSize: 16, padding: "10px 4px", textAlign: "center", outline: "none", boxSizing: "border-box" },
-  addBtn: { width: "100%", background: "#f97316", color: "#000", border: "none", borderRadius: 10, fontWeight: 900, fontSize: 17, letterSpacing: 2, padding: 13, cursor: "pointer" },
-  entry: { background: "#1a1a1a", borderRadius: 12, border: "1px solid #2e2e2e", padding: "13px 14px", marginBottom: 8, display: "flex", alignItems: "center", gap: 10 },
-  entryInfo: { flex: 1, minWidth: 0 },
-  entryName: { fontSize: 14, fontWeight: 600, marginBottom: 5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  entryMacros: { display: "flex", gap: 10, flexWrap: "wrap", fontSize: 12, fontWeight: 500 },
-  delBtn: { background: "none", border: "none", color: "#666", fontSize: 20, cursor: "pointer", padding: 4, lineHeight: 1, flexShrink: 0 },
-  empty: { textAlign: "center", color: "#666", fontSize: 14, padding: "24px 0" },
-  fab: { position: "fixed", bottom: 24, right: 20, background: "#1a1a1a", border: "1px solid #2e2e2e", color: "#666", width: 48, height: 48, borderRadius: "50%", fontSize: 22, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 20 },
-  overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 30, display: "flex", alignItems: "flex-end" },
-  modal: { background: "#1a1a1a", borderRadius: "20px 20px 0 0", borderTop: "1px solid #2e2e2e", padding: "24px 20px 40px", width: "100%", position: "relative" },
-  closeBtn: { position: "absolute", top: 20, right: 20, background: "none", border: "none", color: "#666", fontSize: 26, cursor: "pointer" },
-  modalTitle: { fontSize: 20, fontWeight: 900, letterSpacing: 2, marginBottom: 16 },
-  calGoal: { marginBottom: 16 },
-  goalLabel: { fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 5 },
-  goalInput: { width: "100%", background: "#242424", border: "1px solid #2e2e2e", borderRadius: 8, color: "#f0f0f0", fontFamily: "inherit", fontSize: 18, padding: "11px 12px", outline: "none", boxSizing: "border-box" },
-  macroGoalRow: { display: "grid", gridTemplateColumns: "68px auto 1fr", alignItems: "center", gap: "8px 10px", marginBottom: 4 },
-  macroGoalLabel: { fontSize: 13, fontWeight: 800, letterSpacing: 1 },
-  toggleGroup: { display: "flex", borderRadius: 7, overflow: "hidden", border: "1px solid #2e2e2e", width: "fit-content" },
-  toggleBtn: { background: "#242424", border: "none", color: "#666", fontFamily: "inherit", fontSize: 12, fontWeight: 700, padding: "6px 11px", cursor: "pointer" },
-  toggleActive: { background: "#f0f0f0", color: "#000" },
-  goalInputSmall: { width: "100%", background: "#242424", border: "1px solid #2e2e2e", borderRadius: 8, color: "#f0f0f0", fontFamily: "inherit", fontSize: 16, padding: "9px 10px", outline: "none", boxSizing: "border-box" },
-  hintRow: { fontSize: 11, color: "#666", paddingLeft: 2, minHeight: 18, marginBottom: 10 },
-  saveBtn: { width: "100%", background: "#f0f0f0", color: "#000", border: "none", borderRadius: 10, fontWeight: 900, fontSize: 17, letterSpacing: 2, padding: 14, cursor: "pointer", marginTop: 4 },
-  resetBtn: { width: "100%", background: "none", color: "#ef4444", border: "1px solid #ef4444", borderRadius: 10, fontWeight: 700, fontSize: 14, letterSpacing: 2, padding: 11, cursor: "pointer", marginTop: 10 },
+const s = {
+  root: { background:"#0f0f0f", minHeight:"100vh", color:"#f0f0f0", paddingBottom:100 },
+  header: { background:"#1a1a1a", borderBottom:"1px solid #2e2e2e", padding:"18px 20px 14px", position:"sticky", top:0, zIndex:10 },
+  headerTitle: { fontSize:26, fontWeight:900, letterSpacing:3, color:"#f97316" },
+  headerSub: { fontSize:12, color:"#666", marginTop:2 },
+  dateBar: { display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 20px", background:"#1a1a1a", borderBottom:"1px solid #2e2e2e" },
+  dateBtn: { background:"none", border:"none", color:"#666", fontSize:22, cursor:"pointer", padding:"4px 10px" },
+  dateLabel: { fontSize:14, fontWeight:500 },
+  rings: { display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, padding:16 },
+  ringCard: { background:"#1a1a1a", borderRadius:14, padding:"14px 10px", textAlign:"center", border:"1px solid #2e2e2e" },
+  ringLabel: { fontSize:11, fontWeight:700, letterSpacing:1, marginTop:8, color:"#666" },
+  ringRemain: { fontSize:13, fontWeight:700, marginTop:2 },
+  section: { padding:"0 16px", marginTop:8 },
+  sectionTitle: { fontSize:13, fontWeight:700, letterSpacing:2, color:"#666", marginBottom:10 },
+  addCard: { background:"#1a1a1a", borderRadius:16, border:"1px solid #2e2e2e", padding:16, marginBottom:16 },
+  savedRow: { display:"flex", gap:8, marginBottom:10 },
+  savedBtn: { flex:1, background:"#242424", border:"1px solid #2e2e2e", borderRadius:8, color:"#f0f0f0", fontFamily:"inherit", fontSize:13, fontWeight:600, padding:"9px 12px", cursor:"pointer", textAlign:"left" },
+  saveAsBtn: { background:"#242424", border:"1px solid #3b82f6", borderRadius:8, color:"#3b82f6", fontFamily:"inherit", fontSize:13, fontWeight:700, padding:"9px 14px", cursor:"pointer", whiteSpace:"nowrap" },
+  savedList: { background:"#0f0f0f", borderRadius:10, border:"1px solid #2e2e2e", marginBottom:10, overflow:"hidden" },
+  savedEmpty: { padding:14, color:"#666", fontSize:13, textAlign:"center" },
+  savedItem: { display:"flex", alignItems:"center", borderBottom:"1px solid #1a1a1a", padding:"10px 12px", gap:8 },
+  savedItemInfo: { flex:1, cursor:"pointer" },
+  savedItemName: { fontSize:14, fontWeight:600, marginBottom:3 },
+  savedItemMacros: { display:"flex", gap:8, fontSize:11, fontWeight:500 },
+  nameInput: { width:"100%", background:"#242424", border:"1px solid #2e2e2e", borderRadius:10, color:"#f0f0f0", fontFamily:"inherit", fontSize:15, padding:"11px 14px", marginBottom:10, outline:"none", boxSizing:"border-box" },
+  macroInputs: { display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:12 },
+  macroField: { display:"flex", flexDirection:"column", gap:5 },
+  macroLabel: { fontSize:10, fontWeight:700, letterSpacing:1 },
+  macroInput: { width:"100%", background:"#242424", border:"1px solid #2e2e2e", borderRadius:8, color:"#f0f0f0", fontFamily:"inherit", fontSize:16, padding:"10px 4px", textAlign:"center", outline:"none", boxSizing:"border-box" },
+  addBtn: { width:"100%", background:"#f97316", color:"#000", border:"none", borderRadius:10, fontWeight:900, fontSize:17, letterSpacing:2, padding:13, cursor:"pointer" },
+  entry: { background:"#1a1a1a", borderRadius:12, border:"1px solid #2e2e2e", padding:"13px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:10 },
+  entryInfo: { flex:1, minWidth:0 },
+  entryName: { fontSize:14, fontWeight:600, marginBottom:5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" },
+  entryMacros: { display:"flex", gap:10, flexWrap:"wrap", fontSize:12, fontWeight:500 },
+  delBtn: { background:"none", border:"none", color:"#666", fontSize:20, cursor:"pointer", padding:4, lineHeight:1, flexShrink:0 },
+  empty: { textAlign:"center", color:"#666", fontSize:14, padding:"24px 0" },
+  fab: { position:"fixed", bottom:24, right:20, background:"#1a1a1a", border:"1px solid #2e2e2e", color:"#666", width:48, height:48, borderRadius:"50%", fontSize:13, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", zIndex:20 },
+  overlay: { position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:30, display:"flex", alignItems:"flex-end" },
+  modal: { background:"#1a1a1a", borderRadius:"20px 20px 0 0", borderTop:"1px solid #2e2e2e", padding:"24px 20px 40px", width:"100%", position:"relative" },
+  closeBtn: { position:"absolute", top:20, right:20, background:"none", border:"none", color:"#666", fontSize:26, cursor:"pointer" },
+  modalTitle: { fontSize:20, fontWeight:900, letterSpacing:2, marginBottom:16 },
+  calGoal: { marginBottom:16 },
+  goalLabel: { fontSize:11, fontWeight:700, letterSpacing:1, marginBottom:5 },
+  goalInput: { width:"100%", background:"#242424", border:"1px solid #2e2e2e", borderRadius:8, color:"#f0f0f0", fontFamily:"inherit", fontSize:18, padding:"11px 12px", outline:"none", boxSizing:"border-box" },
+  macroGoalRow: { display:"grid", gridTemplateColumns:"68px auto 1fr", alignItems:"center", gap:"8px 10px", marginBottom:4 },
+  macroGoalLabel: { fontSize:13, fontWeight:800, letterSpacing:1 },
+  toggleGroup: { display:"flex", borderRadius:7, overflow:"hidden", border:"1px solid #2e2e2e", width:"fit-content" },
+  toggleBtn: { background:"#242424", border:"none", color:"#666", fontFamily:"inherit", fontSize:12, fontWeight:700, padding:"6px 11px", cursor:"pointer" },
+  toggleActive: { background:"#f0f0f0", color:"#000" },
+  goalInputSmall: { width:"100%", background:"#242424", border:"1px solid #2e2e2e", borderRadius:8, color:"#f0f0f0", fontFamily:"inherit", fontSize:16, padding:"9px 10px", outline:"none", boxSizing:"border-box" },
+  hintRow: { fontSize:11, color:"#666", paddingLeft:2, minHeight:18, marginBottom:10 },
+  saveBtn: { width:"100%", background:"#f0f0f0", color:"#000", border:"none", borderRadius:10, fontWeight:900, fontSize:17, letterSpacing:2, padding:14, cursor:"pointer", marginTop:4 },
+  resetBtn: { width:"100%", background:"none", color:"#ef4444", border:"1px solid #ef4444", borderRadius:10, fontWeight:700, fontSize:14, letterSpacing:2, padding:11, cursor:"pointer", marginTop:10 },
 };
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
