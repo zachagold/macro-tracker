@@ -362,7 +362,7 @@ function App() {
             ].map(f => (
               <div key={f.id} style={s.macroField}>
                 <div style={{ ...s.macroLabel, color: f.color }}>{f.label}</div>
-                <input style={s.macroInput} type="number" inputMode="numeric"
+                <input style={s.macroInput} type="number" inputMode="decimal"
                   placeholder="0" value={f.val} onChange={e => f.set(e.target.value)} />
               </div>
             ))}
@@ -409,7 +409,7 @@ function App() {
             <div style={s.modalTitle}>DAILY GOALS</div>
             <div style={s.calGoal}>
               <div style={{ ...s.goalLabel, color: COLORS.cal }}>CALORIES</div>
-              <input style={s.goalInput} type="number" inputMode="numeric"
+              <input style={s.goalInput} type="number" inputMode="decimal"
                 placeholder="1710" value={gCal} onChange={e => setGCal(e.target.value)} />
             </div>
             {[
@@ -426,7 +426,7 @@ function App() {
                     <button style={{ ...s.toggleBtn, ...(tempModes[f.macro]==="%" ? s.toggleActive : {}) }}
                       onClick={() => setTempModes(m => ({ ...m, [f.macro]:"%" }))}>%</button>
                   </div>
-                  <input style={s.goalInputSmall} type="number" inputMode="numeric"
+                  <input style={s.goalInputSmall} type="number" inputMode="decimal"
                     placeholder={tempModes[f.macro]==="%" ? f.ph.p : f.ph.g} value={f.val} onChange={e => f.set(e.target.value)} />
                 </div>
                 <div style={s.hintRow}>{hint(f.macro, f.val, gCal)}</div>
