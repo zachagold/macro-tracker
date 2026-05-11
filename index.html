@@ -27,6 +27,11 @@ function todayKey() { return new Date().toISOString().slice(0, 10); }
 function fmtDate(key) {
   return new Date(key + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
+function offsetDate(key, days) {
+  const d = new Date(key + "T12:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
 function Ring({ color, used, goal, label, unit }) {
   const circ = 169.6;
@@ -44,6 +49,22 @@ function Ring({ color, used, goal, label, unit }) {
       <div style={s.ringLabel}>{label}</div>
       <div style={{ ...s.ringRemain, color: over ? "#ef4444" : color }}>
         {goal ? (over ? "-" : "") + Math.abs(Math.round(goal - used)) + unit : "---"}
+      </div>
+    </div>
+  );
+}
+
+function ProgressBar({ color, used, goal, label, unit }) {
+  const pct = goal > 0 ? Math.min(used / goal, 1) : 0;
+  const over = goal > 0 && used > goal;
+  return (
+    <div style={s.pbRow}>
+      <div style={s.pbLabel}>{label}</div>
+      <div style={s.pbTrack}>
+        <div style={{ ...s.pbFill, width: (pct*100) + "%", background: over ? "#ef4444" : color, transition: "width 0.4s ease" }} />
+      </div>
+      <div style={{ ...s.pbValue, color: over ? "#ef4444" : color }}>
+        {Math.round(used)}{unit} / {goal}{unit}
       </div>
     </div>
   );
@@ -76,6 +97,8 @@ function App() {
   const [inPro, setInPro] = useState("");
   const [showSavedList, setShowSavedList] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showWeekly, setShowWeekly] = useState(false);
+  const [editIdx, setEditIdx] = useState(null);
   const [gCal, setGCal] = useState(String(DEFAULT_GOALS.cal));
   const [gCarb, setGCarb] = useState(String(DEFAULT_GOALS.carb));
   const [gFat, setGFat] = useState(String(DEFAULT_GOALS.fat));
@@ -100,6 +123,10 @@ function App() {
     return val;
   }
 
+  const gCarbs = gramsGoal("carb");
+  const gFats = gramsGoal("fat");
+  const gPros = gramsGoal("pro");
+
   function changeDay(dir) {
     const d = new Date(currentDate + "T12:00:00");
     d.setDate(d.getDate() + dir);
@@ -110,8 +137,40 @@ function App() {
     const cal = Number(inCal)||0, carb = Number(inCarb)||0, fat = Number(inFat)||0, pro = Number(inPro)||0;
     if (!cal && !carb && !fat && !pro) return;
     const name = entryName.trim() || "Entry";
-    setAllData(prev => ({ ...prev, [currentDate]: [...(prev[currentDate]||[]), { name, cal, carb, fat, pro }] }));
+    if (editIdx !== null) {
+      setAllData(prev => {
+        const updated = [...(prev[currentDate]||[])];
+        updated[editIdx] = { name, cal, carb, fat, pro };
+        return { ...prev, [currentDate]: updated };
+      });
+      setEditIdx(null);
+    } else {
+      setAllData(prev => ({ ...prev, [currentDate]: [...(prev[currentDate]||[]), { name, cal, carb, fat, pro }] }));
+    }
     setEntryName(""); setInCal(""); setInCarb(""); setInFat(""); setInPro("");
+  }
+
+  function startEdit(i) {
+    const e = entries[i];
+    setEntryName(e.name); setInCal(String(e.cal));
+    setInCarb(String(e.carb)); setInFat(String(e.fat)); setInPro(String(e.pro));
+    setEditIdx(i);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelEdit() {
+    setEditIdx(null);
+    setEntryName(""); setInCal(""); setInCarb(""); setInFat(""); setInPro("");
+  }
+
+  function copyYesterday() {
+    const yesterday = offsetDate(currentDate, -1);
+    const yEntries = allData[yesterday] || [];
+    if (yEntries.length === 0) { alert("No entries found for yesterday."); return; }
+    if ((allData[currentDate]||[]).length > 0) {
+      if (!window.confirm("This will add yesterday's entries to today. Continue?")) return;
+    }
+    setAllData(prev => ({ ...prev, [currentDate]: [...(prev[currentDate]||[]), ...yEntries] }));
   }
 
   function saveCurrentAsFood() {
@@ -131,8 +190,32 @@ function App() {
   }
 
   function deleteSavedFood(i) { setSavedFoods(prev => prev.filter((_, idx) => idx !== i)); }
+
   function deleteEntry(i) {
+    if (editIdx === i) cancelEdit();
     setAllData(prev => ({ ...prev, [currentDate]: prev[currentDate].filter((_, idx) => idx !== i) }));
+  }
+
+  // Weekly summary
+  function getWeeklySummary() {
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const key = offsetDate(todayKey(), -i);
+      const dayEntries = allData[key] || [];
+      const t = dayEntries.reduce(
+        (acc, e) => ({ cal: acc.cal+(Number(e.cal)||0), carb: acc.carb+(Number(e.carb)||0), fat: acc.fat+(Number(e.fat)||0), pro: acc.pro+(Number(e.pro)||0) }),
+        { cal: 0, carb: 0, fat: 0, pro: 0 }
+      );
+      days.push({ key, label: i === 0 ? "Today" : fmtDate(key).split(",")[0], ...t, hasData: dayEntries.length > 0 });
+    }
+    const logged = days.filter(d => d.hasData);
+    const avg = logged.length > 0 ? {
+      cal: Math.round(logged.reduce((a,d) => a+d.cal, 0) / logged.length),
+      carb: Math.round(logged.reduce((a,d) => a+d.carb, 0) / logged.length),
+      fat: Math.round(logged.reduce((a,d) => a+d.fat, 0) / logged.length),
+      pro: Math.round(logged.reduce((a,d) => a+d.pro, 0) / logged.length),
+    } : null;
+    return { days, avg, loggedCount: logged.length };
   }
 
   function openModal() {
@@ -160,27 +243,88 @@ function App() {
   }
 
   const dateLabel = currentDate === todayKey() ? "Today -- " + fmtDate(currentDate) : fmtDate(currentDate);
+  const weekly = showWeekly ? getWeeklySummary() : null;
 
   return (
     <div style={s.root}>
+      {/* Header */}
       <div style={s.header}>
         <div style={s.headerTitle}>MACRO TRACKER</div>
         <div style={s.headerSub}>Tap gear to edit goals</div>
       </div>
+
+      {/* Date bar */}
       <div style={s.dateBar}>
         <button style={s.dateBtn} onClick={() => changeDay(-1)}>{"<"}</button>
         <span style={s.dateLabel}>{dateLabel}</span>
         <button style={s.dateBtn} onClick={() => changeDay(1)}>{">"}</button>
       </div>
+
+      {/* Rings */}
       <div style={s.rings}>
-        <Ring color={COLORS.cal}  used={totals.cal}  goal={goals.cal}         label="CALS"    unit="" />
-        <Ring color={COLORS.carb} used={totals.carb} goal={gramsGoal("carb")}  label="CARBS"   unit="g" />
-        <Ring color={COLORS.fat}  used={totals.fat}  goal={gramsGoal("fat")}   label="FAT"     unit="g" />
-        <Ring color={COLORS.pro}  used={totals.pro}  goal={gramsGoal("pro")}   label="PROTEIN" unit="g" />
+        <Ring color={COLORS.cal}  used={totals.cal}  goal={goals.cal}  label="CALS"    unit="" />
+        <Ring color={COLORS.carb} used={totals.carb} goal={gCarbs}     label="CARBS"   unit="g" />
+        <Ring color={COLORS.fat}  used={totals.fat}  goal={gFats}      label="FAT"     unit="g" />
+        <Ring color={COLORS.pro}  used={totals.pro}  goal={gPros}      label="PROTEIN" unit="g" />
       </div>
+
+      {/* Progress bars */}
+      <div style={s.pbSection}>
+        <ProgressBar color={COLORS.cal}  used={totals.cal}  goal={goals.cal} label="Cal"  unit="" />
+        <ProgressBar color={COLORS.carb} used={totals.carb} goal={gCarbs}    label="Carb" unit="g" />
+        <ProgressBar color={COLORS.fat}  used={totals.fat}  goal={gFats}     label="Fat"  unit="g" />
+        <ProgressBar color={COLORS.pro}  used={totals.pro}  goal={gPros}     label="Pro"  unit="g" />
+      </div>
+
+      {/* Weekly summary toggle */}
       <div style={s.section}>
-        <div style={s.sectionTitle}>ADD ENTRY</div>
-        <div style={s.addCard}>
+        <button style={s.weeklyToggle} onClick={() => setShowWeekly(v => !v)}>
+          {showWeekly ? "Hide Weekly Summary" : "Show Weekly Summary"}
+        </button>
+        {showWeekly && weekly && (
+          <div style={s.weeklyCard}>
+            <div style={s.weeklyHeader}>
+              Last 7 Days — {weekly.loggedCount} day{weekly.loggedCount !== 1 ? "s" : ""} logged
+            </div>
+            {weekly.days.map(d => (
+              <div key={d.key} style={{ ...s.weeklyRow, opacity: d.hasData ? 1 : 0.35 }}>
+                <div style={s.weeklyDay}>{d.label}</div>
+                <div style={s.weeklyMacros}>
+                  {d.hasData ? (
+                    <>
+                      <span style={{ color: COLORS.cal }}>{d.cal}</span>
+                      <span style={{ color: COLORS.carb }}>{d.carb}g</span>
+                      <span style={{ color: COLORS.fat }}>{d.fat}g</span>
+                      <span style={{ color: COLORS.pro }}>{d.pro}g</span>
+                    </>
+                  ) : <span style={{ color: "#444" }}>no data</span>}
+                </div>
+              </div>
+            ))}
+            {weekly.avg && (
+              <div style={s.weeklyAvg}>
+                <div style={s.weeklyDay}>Avg</div>
+                <div style={s.weeklyMacros}>
+                  <span style={{ color: COLORS.cal }}>{weekly.avg.cal}</span>
+                  <span style={{ color: COLORS.carb }}>{weekly.avg.carb}g</span>
+                  <span style={{ color: COLORS.fat }}>{weekly.avg.fat}g</span>
+                  <span style={{ color: COLORS.pro }}>{weekly.avg.pro}g</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Add Entry */}
+      <div style={s.section}>
+        <div style={s.sectionTitleRow}>
+          <div style={s.sectionTitle}>{editIdx !== null ? "EDIT ENTRY" : "ADD ENTRY"}</div>
+          {currentDate === todayKey() && editIdx === null && (
+            <button style={s.copyBtn} onClick={copyYesterday}>Copy Yesterday</button>
+          )}
+        </div>
+        <div style={{ ...s.addCard, borderColor: editIdx !== null ? "#f97316" : "#2e2e2e" }}>
           <div style={s.savedRow}>
             <button style={s.savedBtn} onClick={() => setShowSavedList(v => !v)}>
               {"★ Saved Foods " + (savedFoods.length > 0 ? "(" + savedFoods.length + ")" : "")}
@@ -223,13 +367,22 @@ function App() {
               </div>
             ))}
           </div>
-          <button style={s.addBtn} onClick={addEntry}>+ ADD</button>
+          <div style={{ display:"flex", gap:8 }}>
+            <button style={s.addBtn} onClick={addEntry}>
+              {editIdx !== null ? "SAVE EDIT" : "+ ADD"}
+            </button>
+            {editIdx !== null && (
+              <button style={s.cancelBtn} onClick={cancelEdit}>CANCEL</button>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Log */}
       <div style={s.section}>
         <div style={s.sectionTitle}>TODAY'S LOG</div>
         {entries.length === 0 ? <div style={s.empty}>No entries yet</div> : entries.map((e, i) => (
-          <div key={i} style={s.entry}>
+          <div key={i} style={{ ...s.entry, borderColor: editIdx===i ? "#f97316" : "#2e2e2e" }}>
             <div style={s.entryInfo}>
               <div style={s.entryName}>{e.name}</div>
               <div style={s.entryMacros}>
@@ -239,11 +392,16 @@ function App() {
                 <span style={{ color: COLORS.pro }}>{e.pro}g protein</span>
               </div>
             </div>
+            <button style={s.editBtn} onClick={() => startEdit(i)}>edit</button>
             <button style={s.delBtn} onClick={() => deleteEntry(i)}>x</button>
           </div>
         ))}
       </div>
+
+      {/* FAB */}
       <button style={s.fab} onClick={openModal}>gear</button>
+
+      {/* Goals Modal */}
       {showModal && (
         <div style={s.overlay} onClick={e => e.target === e.currentTarget && setShowModal(false)}>
           <div style={s.modal}>
@@ -295,9 +453,24 @@ const s = {
   ringCard: { background:"#1a1a1a", borderRadius:14, padding:"14px 10px", textAlign:"center", border:"1px solid #2e2e2e" },
   ringLabel: { fontSize:11, fontWeight:700, letterSpacing:1, marginTop:8, color:"#666" },
   ringRemain: { fontSize:13, fontWeight:700, marginTop:2 },
+  pbSection: { padding:"0 16px 12px", display:"flex", flexDirection:"column", gap:8 },
+  pbRow: { display:"grid", gridTemplateColumns:"32px 1fr 80px", alignItems:"center", gap:8 },
+  pbLabel: { fontSize:11, fontWeight:700, color:"#666" },
+  pbTrack: { height:6, background:"#2e2e2e", borderRadius:99, overflow:"hidden" },
+  pbFill: { height:"100%", borderRadius:99 },
+  pbValue: { fontSize:11, fontWeight:600, textAlign:"right" },
   section: { padding:"0 16px", marginTop:8 },
-  sectionTitle: { fontSize:13, fontWeight:700, letterSpacing:2, color:"#666", marginBottom:10 },
-  addCard: { background:"#1a1a1a", borderRadius:16, border:"1px solid #2e2e2e", padding:16, marginBottom:16 },
+  sectionTitleRow: { display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 },
+  sectionTitle: { fontSize:13, fontWeight:700, letterSpacing:2, color:"#666" },
+  copyBtn: { background:"#242424", border:"1px solid #2e2e2e", borderRadius:7, color:"#f0f0f0", fontFamily:"inherit", fontSize:12, fontWeight:600, padding:"6px 12px", cursor:"pointer" },
+  weeklyToggle: { width:"100%", background:"#1a1a1a", border:"1px solid #2e2e2e", borderRadius:10, color:"#666", fontFamily:"inherit", fontSize:13, fontWeight:600, padding:"10px", cursor:"pointer", marginBottom:8 },
+  weeklyCard: { background:"#1a1a1a", borderRadius:12, border:"1px solid #2e2e2e", overflow:"hidden", marginBottom:12 },
+  weeklyHeader: { padding:"10px 14px", fontSize:12, fontWeight:700, color:"#666", letterSpacing:1, borderBottom:"1px solid #2e2e2e" },
+  weeklyRow: { display:"flex", alignItems:"center", justifyContent:"space-between", padding:"9px 14px", borderBottom:"1px solid #2e2e2e" },
+  weeklyAvg: { display:"flex", alignItems:"center", justifyContent:"space-between", padding:"9px 14px", background:"#242424" },
+  weeklyDay: { fontSize:13, fontWeight:600, minWidth:50 },
+  weeklyMacros: { display:"flex", gap:10, fontSize:12, fontWeight:600 },
+  addCard: { background:"#1a1a1a", borderRadius:16, border:"2px solid #2e2e2e", padding:16, marginBottom:16 },
   savedRow: { display:"flex", gap:8, marginBottom:10 },
   savedBtn: { flex:1, background:"#242424", border:"1px solid #2e2e2e", borderRadius:8, color:"#f0f0f0", fontFamily:"inherit", fontSize:13, fontWeight:600, padding:"9px 12px", cursor:"pointer", textAlign:"left" },
   saveAsBtn: { background:"#242424", border:"1px solid #3b82f6", borderRadius:8, color:"#3b82f6", fontFamily:"inherit", fontSize:13, fontWeight:700, padding:"9px 14px", cursor:"pointer", whiteSpace:"nowrap" },
@@ -312,11 +485,13 @@ const s = {
   macroField: { display:"flex", flexDirection:"column", gap:5 },
   macroLabel: { fontSize:10, fontWeight:700, letterSpacing:1 },
   macroInput: { width:"100%", background:"#242424", border:"1px solid #2e2e2e", borderRadius:8, color:"#f0f0f0", fontFamily:"inherit", fontSize:16, padding:"10px 4px", textAlign:"center", outline:"none", boxSizing:"border-box" },
-  addBtn: { width:"100%", background:"#f97316", color:"#000", border:"none", borderRadius:10, fontWeight:900, fontSize:17, letterSpacing:2, padding:13, cursor:"pointer" },
-  entry: { background:"#1a1a1a", borderRadius:12, border:"1px solid #2e2e2e", padding:"13px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:10 },
+  addBtn: { flex:1, background:"#f97316", color:"#000", border:"none", borderRadius:10, fontWeight:900, fontSize:17, letterSpacing:2, padding:13, cursor:"pointer" },
+  cancelBtn: { background:"#242424", color:"#666", border:"1px solid #2e2e2e", borderRadius:10, fontWeight:700, fontSize:14, padding:"13px 16px", cursor:"pointer" },
+  entry: { background:"#1a1a1a", borderRadius:12, border:"2px solid #2e2e2e", padding:"13px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:8 },
   entryInfo: { flex:1, minWidth:0 },
   entryName: { fontSize:14, fontWeight:600, marginBottom:5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" },
   entryMacros: { display:"flex", gap:10, flexWrap:"wrap", fontSize:12, fontWeight:500 },
+  editBtn: { background:"#242424", border:"1px solid #2e2e2e", borderRadius:6, color:"#f0f0f0", fontFamily:"inherit", fontSize:11, fontWeight:700, padding:"5px 10px", cursor:"pointer", flexShrink:0 },
   delBtn: { background:"none", border:"none", color:"#666", fontSize:20, cursor:"pointer", padding:4, lineHeight:1, flexShrink:0 },
   empty: { textAlign:"center", color:"#666", fontSize:14, padding:"24px 0" },
   fab: { position:"fixed", bottom:24, right:20, background:"#1a1a1a", border:"1px solid #2e2e2e", color:"#666", width:48, height:48, borderRadius:"50%", fontSize:13, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", zIndex:20 },
