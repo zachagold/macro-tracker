@@ -569,16 +569,52 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return React.createElement('div', {
-        style: { padding: 32, textAlign: 'center', background: '#0f0f0f', minHeight: '100vh', color: '#f0f0f0' }
+        style: { padding: 32, textAlign: 'center', background: '#0f0f0f', minHeight: '100vh', color: '#f0f0f0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }
       },
         React.createElement('div', { style: { fontSize: 40, marginBottom: 16 } }, '⚠️'),
         React.createElement('div', { style: { fontSize: 18, fontWeight: 700, marginBottom: 8 } }, 'Something went wrong'),
-        React.createElement('div', { style: { fontSize: 13, color: '#666', marginBottom: 24 } }, 'Your data is safe. Tap below to reload.'),
+        React.createElement('div', { style: { fontSize: 13, color: '#666', marginBottom: 24, maxWidth: 280 } }, 'Your goals and saved foods are safe. Tap below to reload — corrupted entries will be cleared.'),
         React.createElement('button', {
-          onClick: () => this.setState({ hasError: false }),
+          onClick: () => {
+            try {
+              // Sanitize all entry data before reloading
+              const raw = localStorage.getItem("mg_data");
+              if (raw) {
+                const data = JSON.parse(raw);
+                const clean = {};
+                Object.keys(data).forEach(date => {
+                  const entries = data[date];
+                  if (Array.isArray(entries)) {
+                    clean[date] = entries.filter(e => e && typeof e === 'object' && e.name).map(e => ({
+                      name:  String(e.name || "Entry"),
+                      cal:   isFinite(Number(e.cal))  ? Number(e.cal)  : 0,
+                      carb:  isFinite(Number(e.carb)) ? Number(e.carb) : 0,
+                      fat:   isFinite(Number(e.fat))  ? Number(e.fat)  : 0,
+                      pro:   isFinite(Number(e.pro))  ? Number(e.pro)  : 0,
+                      count: Math.max(1, Number(e.count)||1),
+                    }));
+                  }
+                });
+                localStorage.setItem("mg_data", JSON.stringify(clean));
+              }
+            } catch(e) {
+              localStorage.removeItem("mg_data");
+            }
+            window.location.reload();
+          },
           style: { background: '#f97316', border: 'none', borderRadius: 10, color: '#000',
-            fontWeight: 900, fontSize: 16, padding: '12px 28px', cursor: 'pointer' }
-        }, 'Reload App')
+            fontWeight: 900, fontSize: 16, padding: '12px 28px', cursor: 'pointer', marginBottom: 16 }
+        }, 'Reload App'),
+        React.createElement('button', {
+          onClick: () => {
+            if (window.confirm("This will clear ALL entry data but keep your goals and saved foods. Continue?")) {
+              localStorage.removeItem("mg_data");
+              window.location.reload();
+            }
+          },
+          style: { background: 'none', border: '1px solid #ef4444', borderRadius: 10, color: '#ef4444',
+            fontWeight: 700, fontSize: 13, padding: '10px 24px', cursor: 'pointer' }
+        }, 'Clear Entry Data & Reload')
       );
     }
     return this.props.children;
