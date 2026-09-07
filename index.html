@@ -23,7 +23,10 @@ const CAL_PER_G = { carb: 4, fat: 9, pro: 4 };
 const DEFAULT_GOALS = { cal: 1710, carb: 144, fat: 62, pro: 149 };
 const COLORS = { cal: "#f97316", carb: "#3b82f6", fat: "#a855f7", pro: "#22c55e" };
 
-function todayKey() { return new Date().toISOString().slice(0, 10); }
+function todayKey() {
+  // Always use Eastern Time so the day rolls over at midnight EST/EDT
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
 function fmtDate(key) {
   return new Date(key + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
@@ -111,10 +114,16 @@ function App() {
   useEffect(() => { localStorage.setItem("mg_saved", JSON.stringify(savedFoods)); }, [savedFoods]);
 
   const entries = allData[currentDate] || [];
-  const totals = entries.reduce(
-    (acc, e) => ({ cal: acc.cal+(Number(e.cal)||0), carb: acc.carb+(Number(e.carb)||0), fat: acc.fat+(Number(e.fat)||0), pro: acc.pro+(Number(e.pro)||0) }),
-    { cal: 0, carb: 0, fat: 0, pro: 0 }
-  );
+  const totals = entries.reduce((acc, e) => {
+    try {
+      return {
+        cal:  acc.cal  + (isFinite(Number(e.cal))  ? Number(e.cal)  : 0),
+        carb: acc.carb + (isFinite(Number(e.carb)) ? Number(e.carb) : 0),
+        fat:  acc.fat  + (isFinite(Number(e.fat))  ? Number(e.fat)  : 0),
+        pro:  acc.pro  + (isFinite(Number(e.pro))  ? Number(e.pro)  : 0),
+      };
+    } catch(err) { return acc; }
+  }, { cal: 0, carb: 0, fat: 0, pro: 0 });
 
   function gramsGoal(macro) {
     const val = goals[macro];
@@ -183,12 +192,20 @@ function App() {
 
   function copyYesterday() {
     const yesterday = offsetDate(currentDate, -1);
-    const yEntries = allData[yesterday] || [];
-    if (yEntries.length === 0) { alert("No entries found for yesterday."); return; }
+    const yEntries = (allData[yesterday] || []).filter(e => e && e.name);
+    const sanitized = yEntries.map(e => ({
+      name:  e.name  || "Entry",
+      cal:   isFinite(Number(e.cal))  ? Number(e.cal)  : 0,
+      carb:  isFinite(Number(e.carb)) ? Number(e.carb) : 0,
+      fat:   isFinite(Number(e.fat))  ? Number(e.fat)  : 0,
+      pro:   isFinite(Number(e.pro))  ? Number(e.pro)  : 0,
+      count: Math.max(1, Number(e.count)||1),
+    }));
+    if (sanitized.length === 0) { alert("No entries found for yesterday."); return; }
     if ((allData[currentDate]||[]).length > 0) {
       if (!window.confirm("This will add yesterday's entries to today. Continue?")) return;
     }
-    setAllData(prev => ({ ...prev, [currentDate]: [...(prev[currentDate]||[]), ...yEntries] }));
+    setAllData(prev => ({ ...prev, [currentDate]: [...(prev[currentDate]||[]), ...sanitized] }));
   }
 
   function saveCurrentAsFood() {
@@ -202,8 +219,12 @@ function App() {
   }
 
   function loadSavedFood(food) {
-    setEntryName(food.name); setInCal(String(food.cal));
-    setInCarb(String(food.carb)); setInFat(String(food.fat)); setInPro(String(food.pro));
+    if (!food) return;
+    setEntryName(food.name || "");
+    setInCal(String(isFinite(Number(food.cal))  ? Number(food.cal)  : 0));
+    setInCarb(String(isFinite(Number(food.carb)) ? Number(food.carb) : 0));
+    setInFat(String(isFinite(Number(food.fat))  ? Number(food.fat)  : 0));
+    setInPro(String(isFinite(Number(food.pro))  ? Number(food.pro)  : 0));
     setShowSavedList(false);
   }
 
@@ -542,7 +563,31 @@ const s = {
   resetBtn: { width:"100%", background:"none", color:"#ef4444", border:"1px solid #ef4444", borderRadius:10, fontWeight:700, fontSize:14, letterSpacing:2, padding:11, cursor:"pointer", marginTop:10 },
 };
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  render() {
+    if (this.state.hasError) {
+      return React.createElement('div', {
+        style: { padding: 32, textAlign: 'center', background: '#0f0f0f', minHeight: '100vh', color: '#f0f0f0' }
+      },
+        React.createElement('div', { style: { fontSize: 40, marginBottom: 16 } }, '⚠️'),
+        React.createElement('div', { style: { fontSize: 18, fontWeight: 700, marginBottom: 8 } }, 'Something went wrong'),
+        React.createElement('div', { style: { fontSize: 13, color: '#666', marginBottom: 24 } }, 'Your data is safe. Tap below to reload.'),
+        React.createElement('button', {
+          onClick: () => this.setState({ hasError: false }),
+          style: { background: '#f97316', border: 'none', borderRadius: 10, color: '#000',
+            fontWeight: 900, fontSize: 16, padding: '12px 28px', cursor: 'pointer' }
+        }, 'Reload App')
+      );
+    }
+    return this.props.children;
+  }
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  React.createElement(ErrorBoundary, null, React.createElement(App))
+);
 </script>
 </body>
 </html>
